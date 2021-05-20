@@ -5,33 +5,41 @@ Youtube: http://www.youtube.com/c/MurtazasWorkshopRoboticsandAI
 Website: https://www.computervision.zone
 """
 
-
 import cv2
 import mediapipe as mp
 import time
 import math
 import numpy as np
 
+
 class handDetector():
-    def __init__(self, mode=False, maxHands=2, detectionCon=0.5, trackCon=0.5):
+    def __init__(self, mode=False, maxHands=2, detectionCon=0.8, trackCon=0.5):
         self.mode = mode
         self.maxHands = maxHands
         self.detectionCon = detectionCon
         self.trackCon = trackCon
 
         self.mpHands = mp.solutions.hands
-        self.hands = self.mpHands.Hands(self.mode, self.maxHands,self.detectionCon,self.trackCon)
+        self.hands = self.mpHands.Hands(self.mode, self.maxHands, self.detectionCon, self.trackCon)
         self.mpDraw = mp.solutions.drawing_utils
         self.tipIds = [4, 8, 12, 16, 20]
 
     def findHands(self, img, draw=True):
         imgRGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
         self.results = self.hands.process(imgRGB)
         # print(results.multi_hand_landmarks)
         if self.results.multi_hand_landmarks:
-            for handLms in self.results.multi_hand_landmarks:
+            for num_hands_index, handLms in enumerate(self.results.multi_hand_landmarks):
                 if draw:
-                    self.mpDraw.draw_landmarks(img, handLms,self.mpHands.HAND_CONNECTIONS)
+                    self.mpDraw.draw_landmarks(img, handLms, self.mpHands.HAND_CONNECTIONS,
+                                               self.mpDraw.DrawingSpec(color=(255, 234, 91), thickness=2,
+                                                                       circle_radius=4),
+                                               self.mpDraw.DrawingSpec(color=(134, 22, 126), thickness=2,
+                                                                       circle_radius=2), )
+                if self.LeftRight(num_hands_index, handLms, self.results, img):
+                    text, coords = self.LeftRight(num_hands_index, handLms, self.results, img)
+                    cv2.putText(img, text, coords, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
         return img
 
     def findPosition(self, img, handNo=0, draw=True):
@@ -46,19 +54,19 @@ class handDetector():
                 # print(id, lm)
                 h, w, c = img.shape
                 cx, cy = int(lm.x * w), int(lm.y * h)
-                depth_z = int(lm.z *(w*h))
+                depth_z = int(lm.z * (w * h))
                 xList.append(cx)
                 yList.append(cy)
                 # print(id, cx, cy)
                 self.lmList.append([id, cx, cy])
                 if draw:
-                    cv2.circle(img, (cx, cy), 5, (255, 0, 255), cv2.FILLED)
+                    cv2.circle(img, (cx, cy), 5, (255, 0, 255), int(cv2.FILLED * depth_z / 10000))
             xmin, xmax = min(xList), max(xList)
             ymin, ymax = min(yList), max(yList)
             bbox = xmin, ymin, xmax, ymax
 
             if draw:
-                cv2.rectangle(img, (xmin - 20, ymin - 20),(xmax + 20, ymax + 20),(0, 255, 0), 2)
+                cv2.rectangle(img, (xmin - 20, ymin - 20), (xmax + 20, ymax + 20), (0, 255, 0), 2)
         return self.lmList, bbox
 
     def fingersUp(self):
@@ -80,7 +88,7 @@ class handDetector():
 
         return fingers
 
-    def findDistance(self, p1, p2, img, draw=True,r=15, t=3):
+    def findDistance(self, p1, p2, img, draw=True, r=15, t=3):
         x1, y1 = self.lmList[p1][1:]
         x2, y2 = self.lmList[p2][1:]
         cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
@@ -94,13 +102,39 @@ class handDetector():
 
         return length, img, [x1, y1, x2, y2, cx, cy]
 
+    def LeftRight(self, num_hands_index, hand_landmarks, results, cam_img):
+        # results= self.results
+        output = None
+        for index, classification in enumerate(results.multi_handedness):
+            # if the classsification index is same as the hand indx in the scene
+            if classification.classification[0].index == num_hands_index:
+                label = classification.classification[0].label
+                score = classification.classification[0].score
+                text = '{} {}'.format(label, round(score, 2))
+
+                # Exctracting coordinates of hands wrist
+                coordinates = tuple(np.multiply(
+                    np.array((hand_landmarks.landmark[self.mpHands.HandLandmark.WRIST].x,
+                              hand_landmarks.landmark[self.mpHands.HandLandmark.WRIST].y)),
+                    [640,480]).astype(int)) #cam_img.get(cv2.CV_CAP_PROP_FRAME_WIDTH), cam_img.get(cv2.CV_CAP_PROP_FRAME_HEIGHT)
+                output = text, coordinates
+        return output
+
+        # hand_landmarks
+
+    def findAngle(self, ):
+        pass
+
+
 def main():
     pTime = 0
     cTime = 0
     cap = cv2.VideoCapture(0)
     detector = handDetector()
     while True:
+        # print( "cam Dimensions ==",cap.get(cv2.CAP_PROP_FRAME_WIDTH), cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         success, img = cap.read()
+        img = cv2.flip(img, 1)
         img = detector.findHands(img)
         lmList, bbox = detector.findPosition(img)
         if len(lmList) != 0:
@@ -110,9 +144,10 @@ def main():
         fps = 1 / (cTime - pTime)
         pTime = cTime
 
-        cv2.putText(img, str(int(fps)), (10, 70), cv2.FONT_HERSHEY_PLAIN, 3,(255, 0, 255), 3)
+        # cv2.putText(img, 'fps='+str(int(fps)), (10, 70), cv2.FONT_HERSHEY_PLAIN, 3,(255, 0, 255), 3)
         cv2.imshow("Image", img)
         cv2.waitKey(1)
+
 
 if __name__ == "__main__":
     main()
