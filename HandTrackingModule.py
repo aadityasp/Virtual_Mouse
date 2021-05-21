@@ -10,10 +10,11 @@ import mediapipe as mp
 import time
 import math
 import numpy as np
+from matplotlib import pyplot as plt
 
 
 class handDetector():
-    def __init__(self, mode=False, maxHands=2, detectionCon=0.8, trackCon=0.5):
+    def __init__(self, mode=False, maxHands=2, detectionCon=0.7, trackCon=0.5):
         self.mode = mode
         self.maxHands = maxHands
         self.detectionCon = detectionCon
@@ -23,6 +24,8 @@ class handDetector():
         self.hands = self.mpHands.Hands(self.mode, self.maxHands, self.detectionCon, self.trackCon)
         self.mpDraw = mp.solutions.drawing_utils
         self.tipIds = [4, 8, 12, 16, 20]
+        # self.joints= [[8,5,0],[20,17,0]] #(tip,joint,andwrist) for index, middle=[12,9,0],,pinky
+        self.joints = [[8,6,0]] #,[20,18,0]]
 
     def findHands(self, img, draw=True):
         imgRGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -39,7 +42,8 @@ class handDetector():
                                                                        circle_radius=2), )
                 if self.LeftRight(num_hands_index, handLms, self.results, img):
                     text, coords = self.LeftRight(num_hands_index, handLms, self.results, img)
-                    cv2.putText(img, text, coords, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
+                    cv2.putText(img, text, coords, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2, cv2.LINE_AA)
+                img= self.findAnglebetween(self.joints,self.results,img)
         return img
 
     def findPosition(self, img, handNo=0, draw=True):
@@ -59,8 +63,8 @@ class handDetector():
                 yList.append(cy)
                 # print(id, cx, cy)
                 self.lmList.append([id, cx, cy])
-                if draw:
-                    cv2.circle(img, (cx, cy), 5, (255, 0, 255), int(cv2.FILLED * depth_z / 10000))
+                # if draw:
+                    # cv2.circle(img, (cx, cy), 5, (255, 0, 255), int(cv2.FILLED * depth_z / 10000))
             xmin, xmax = min(xList), max(xList)
             ymin, ymax = min(yList), max(yList)
             bbox = xmin, ymin, xmax, ymax
@@ -116,14 +120,29 @@ class handDetector():
                 coordinates = tuple(np.multiply(
                     np.array((hand_landmarks.landmark[self.mpHands.HandLandmark.WRIST].x,
                               hand_landmarks.landmark[self.mpHands.HandLandmark.WRIST].y)),
-                    [640,480]).astype(int)) #cam_img.get(cv2.CV_CAP_PROP_FRAME_WIDTH), cam_img.get(cv2.CV_CAP_PROP_FRAME_HEIGHT)
+                    [640, 480]).astype(
+                    int))  # cam_img.get(cv2.CV_CAP_PROP_FRAME_WIDTH), cam_img.get(cv2.CV_CAP_PROP_FRAME_HEIGHT)
                 output = text, coordinates
         return output
 
-        # hand_landmarks
+        # joints is a list of lists with landmarks of different fingers between which you want to calculate the angles.
 
-    def findAngle(self, ):
-        pass
+    def findAnglebetween(self, joints, results, image):
+        for hand in results.multi_hand_landmarks:
+            # looping through joints
+            for joint in joints:
+                # find angle between these 3 coordinates at b
+                a = np.array([hand.landmark[joint[0]].x, hand.landmark[joint[0]].y])
+                b = np.array([hand.landmark[joint[1]].x, hand.landmark[joint[1]].y])
+                c = np.array([hand.landmark[joint[2]].x, hand.landmark[joint[2]].y])
+
+                rad = np.arctan2(c[1] - b[1], c[0] - b[0]) - np.arctan2(a[1] - b[1], a[0] - b[0])
+                deg = np.abs(rad * 180.0 / np.pi)
+                if deg > 180.0:
+                    deg = 360 - deg
+                cv2.putText(image, str(round(deg, 2)), tuple(np.multiply(b, [640, 480]).astype(int)),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2, cv2.LINE_AA)
+        return image
 
 
 def main():
@@ -137,8 +156,8 @@ def main():
         img = cv2.flip(img, 1)
         img = detector.findHands(img)
         lmList, bbox = detector.findPosition(img)
-        if len(lmList) != 0:
-            print(lmList[4])
+        # if len(lmList) != 0:
+            # print(lmList[4])
 
         cTime = time.time()
         fps = 1 / (cTime - pTime)
