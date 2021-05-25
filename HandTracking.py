@@ -18,8 +18,8 @@ class handDetector():
         self.mpDraw = mp.solutions.drawing_utils
         self.tipIds = [4, 8, 12, 16, 20]
         # self.joints= [[8,5,0],[20,17,0]] #(tip,joint,andwrist) for index, middle=[12,9,0],,pinky
-        self.joints = [[8,6,0]] #,[20,18,0]]
-
+        self.joints = [[8,6,0],[20,18,0]]
+        self.angles=[]
     def findHands(self, img, draw=True):
         imgRGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
@@ -35,8 +35,9 @@ class handDetector():
                                                                        circle_radius=2), )
                 if self.LeftRight(num_hands_index, handLms, self.results, img):
                     text, coords = self.LeftRight(num_hands_index, handLms, self.results, img)
+                    # print(coords)
                     cv2.putText(img, text, coords, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2, cv2.LINE_AA)
-                img= self.findAnglebetween(self.joints,self.results,img)
+                img ,angle  = self.findAnglebetween(self.joints,self.results,img)
         return img
 
     def findPosition(self, img, handNo=0, draw=True):
@@ -66,13 +67,20 @@ class handDetector():
                 cv2.rectangle(img, (xmin - 20, ymin - 20), (xmax + 20, ymax + 20), (0, 255, 0), 2)
         return self.lmList, bbox
 
-    def fingersUp(self):
+    def fingersUp(self,img):
         fingers = []
+        ll , bbox = self.findPosition(img,draw=False)
+        rect = bbox
         # Thumb
-        if self.lmList[self.tipIds[0]][1] > self.lmList[self.tipIds[0] - 1][1]:
-            fingers.append(1)
+        if self.lmList[self.tipIds[0]][1] > self.lmList[self.tipIds[0] - 2][1]:
+            # print(self.lmList[self.tipIds[0]][1], self.lmList[self.tipIds[0]-1][1])
+        #     if self.LeftRight(num_hands_index, handLms, self.results, img):
+        #         text, coords = self.LeftRight(num_hands_index, handLms, self.results, img)
+        #         if (rect[0] < coords[0] < rect[0]+rect[2] and rect[1] < coords[1] < rect[1]+rect[3]) and text == 'Left':
+        #             print("LEFT THUMBB")
+            fingers.append(0) #1
         else:
-            fingers.append(0)
+            fingers.append(1) #0
 
         # Fingers
         for id in range(1, 5):
@@ -102,6 +110,7 @@ class handDetector():
     def LeftRight(self, num_hands_index, hand_landmarks, results, cam_img):
         # results= self.results
         output = None
+        l_r = None
         for index, classification in enumerate(results.multi_handedness):
             # if the classsification index is same as the hand indx in the scene
             if classification.classification[0].index == num_hands_index:
@@ -116,14 +125,17 @@ class handDetector():
                     [640, 480]).astype(
                     int))  # cam_img.get(cv2.CV_CAP_PROP_FRAME_WIDTH), cam_img.get(cv2.CV_CAP_PROP_FRAME_HEIGHT)
                 output = text, coordinates
+                l_r = label
         return output
 
         # joints is a list of lists with landmarks of different fingers between which you want to calculate the angles.
 
     def findAnglebetween(self, joints, results, image):
+
         for hand in results.multi_hand_landmarks:
             # looping through joints
             for joint in joints:
+
                 # find angle between these 3 coordinates at b
                 a = np.array([hand.landmark[joint[0]].x, hand.landmark[joint[0]].y])
                 b = np.array([hand.landmark[joint[1]].x, hand.landmark[joint[1]].y])
@@ -135,8 +147,9 @@ class handDetector():
                     deg = 360 - deg
                 cv2.putText(image, str(round(deg, 2)), tuple(np.multiply(b, [640, 480]).astype(int)),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2, cv2.LINE_AA)
-        return image
 
+        # print("DEGREE=", deg)
+        return image, deg
 
 def main():
     pTime = 0
