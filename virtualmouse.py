@@ -83,7 +83,7 @@ while True:
                 new_x = np.interp(x1, (bbox_default[0], c_width - bbox_default[0]), (0, screen_width))
                 new_y = np.interp(y1, (bbox_default[1], c_height - bbox_default[1]), (0, screen_height))
 
-                x_after_smoothing = x_before_smoothing +(new_x - x_before_smoothing)/smooth_factor
+                x_after_smoothing = x_before_smoothing + (new_x - x_before_smoothing) / smooth_factor
                 y_after_smoothing = y_before_smoothing + (new_y - y_before_smoothing) / smooth_factor
 
                 cv2.circle(img, (x1, y1), 10, (123, 123, 255), cv2.FILLED)
@@ -94,8 +94,8 @@ while True:
                 scale = autopy.screen.scale()
                 try:
                     # autopy.mouse.smooth_move(new_x/scale, new_y/scale)
-                    autopy.mouse.move(x_after_smoothing,y_after_smoothing)#(new_x, new_y)
-                    x_before_smoothing, x_before_smoothing =x_after_smoothing,y_after_smoothing
+                    autopy.mouse.move(x_after_smoothing, y_after_smoothing)  # (new_x, new_y)
+                    x_before_smoothing, x_before_smoothing = x_after_smoothing, y_after_smoothing
                 except:
                     print("OUT of Bounds")
                 joints = [[8, 6, 5]]
